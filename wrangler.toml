@@ -11,7 +11,7 @@ run_worker_first = ["/api/*", "/auth/*"]
 [[d1_databases]]
 binding = "DB"
 database_name = "keiri-app"
-database_id = "00000000-0000-0000-0000-000000000000" # wrangler d1 create keiri-app で出た ID に書き換える
+database_id = "d395cd5d-5f5d-4e62-b177-8344b60fe602"
 migrations_dir = "migrations"
 
 [ai]

@@ -37,6 +37,7 @@ GET  /api/agent/requests          作成待ちの一覧
 PUT  /api/agent/invoices/:id      {"status":"draft","number":"…","drive_url":"…"} など
 POST /api/agent/vendors           外注の請求書を足す
 POST /api/agent/summary           data.json を取り込む
+POST /api/agent/rules             private/rules.json（科目のルール）を取り込む
 ```
 
 `Authorization: Bearer <AGENT_TOKEN>` が要る（`wrangler secret put AGENT_TOKEN`）。
@@ -53,6 +54,8 @@ npx wrangler secret put AGENT_TOKEN
 npm run deploy
 ```
 
+初回は `zsh tools/deploy.sh`（ログインの ID・Mac 連携の鍵・Google のクライアントシークレットを入れて公開する）。
+
 Google Cloud Console の OAuth クライアント（ウェブアプリケーション）で、承認済みのリダイレクト URI に `https://<公開URL>/auth/callback` を足す。
 
 ## 手元で動かす
@@ -66,6 +69,14 @@ npm run dev
 ```
 
 `http://localhost:8788/auth/dev` で確認用ログイン（手元で `DEV_LOGIN=1` のときだけ有効）。架空のデータで画面を確かめられる。手元では AI をつながない。
+
+## 明細を Mac から入れる
+
+`node tools/import-csv.mjs > private/import.sql` で、経理フォルダ（Google Drive の同期フォルダ）の CSV から、アプリと同じ振り分けの SQL を作る。`npx wrangler d1 execute keiri-app --remote --file private/import.sql` で入れる。行の印はアプリの取り込みと同じなので二重にならない。使い終わった import.sql は消す。
+
+## 作成待ちの自動処理（Mac）
+
+`005_請求書/scripts/app/`（このリポジトリの外）。10分おきに作成待ちを問い合わせ、あれば Claude が INVOY 作成 → PDF → Drive → info@ の下書きまで進めて書き戻す。送信はしない。
 
 ## 科目のルール
 

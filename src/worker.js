@@ -212,6 +212,9 @@ async function handleAgent(request, env, url) {
   if (parts[2] === "summary" && request.method === "POST") {
     return importSummary(env, await request.json());
   }
+  if (parts[2] === "rules" && request.method === "POST") {
+    return importRules(env, await request.json());
+  }
   return json({ error: "not found" }, 404);
 }
 
@@ -318,8 +321,10 @@ async function dashboard(env, fyParam) {
   for (const r of ven) if (live[r.ym]) Object.assign(live[r.ym], { out: r.s, out_n: r.n, hasOut: true });
   const { results: tx } = await env.DB.prepare(
     // ATM で口座に戻した現金は、同じ月の現金払いの経費から差し引く
-    `SELECT ym, category, SUM(CASE WHEN src = '03' AND category = '現金払いの経費（明細なし）' THEN amount - inflow ELSE amount + fee END) AS s FROM transactions WHERE ym >= ? AND category != '' GROUP BY ym, category`
-  ).bind(all[0]).all();
+    // デビットの手数料は、使った店の科目ではなく支払手数料に入れる（前回の仕組みと同じ）
+    `SELECT ym, category, SUM(CASE WHEN src = '03' AND category = '現金払いの経費（明細なし）' THEN amount - inflow ELSE amount END) AS s FROM transactions WHERE ym >= ? AND category != '' GROUP BY ym, category
+     UNION ALL SELECT ym, '支払手数料' AS category, SUM(fee) AS s FROM transactions WHERE ym >= ? AND src = '04' AND fee > 0 AND category != '' GROUP BY ym`
+  ).bind(all[0], all[0]).all();
   for (const r of tx) {
     const m = live[r.ym];
     if (!m) continue;
@@ -660,8 +665,8 @@ async function parseInvoiceRequest(env, text) {
       role: "system",
       content:
         `あなたは日本の請求書の依頼文を読み取る係です。今日は ${today}。次の JSON だけを返してください。説明は不要。\n` +
-        `{"client":"宛先の会社名・氏名（敬称なし）","title":"件名（書かれていなければ空）","amount":税抜の金額の数値,"tax_included":金額が税込なら true,"withholding":源泉徴収が必要と書かれていれば true,"issue_date":"YYYY-MM-DD（書かれていなければ今日）","due_date":"YYYY-MM-DD（書かれていなければ空）"}\n` +
-        `「25万円」は 250000。「税込」と書かれていなければ税抜とみなす。`,
+        `{"client":"宛先の会社名・氏名（敬称なし）","title":"件名（書かれていなければ空）","amount":書かれた金額の数値（税込と書かれていれば税込のまま。税抜に直さない）,"tax_included":金額が税込と書かれていれば true,"withholding":源泉徴収が必要と書かれていれば true,"issue_date":"YYYY-MM-DD（書かれていなければ今日）","due_date":"YYYY-MM-DD（書かれていなければ空）"}\n` +
+        `「25万円」は 250000。「税込11万円」は amount 110000・tax_included true。「税込」と書かれていなければ税抜とみなす。`,
     },
     { role: "user", content: text },
   ], 300).catch(() => null);
@@ -670,6 +675,7 @@ async function parseInvoiceRequest(env, text) {
     parsed = { ...parsed, ...Object.fromEntries(Object.entries(j).filter(([, v]) => v !== "" && v !== null && v !== undefined)) };
     via = "ai";
   }
+  parsed.client = String(parsed.client || "").trim().replace(/\s*(様|さん|御中|殿)$/, "");
   parsed.amount = toInt(parsed.amount);
   if (parsed.tax_included) parsed.amount = Math.round(parsed.amount / 1.1);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(parsed.issue_date || "")) parsed.issue_date = today;
