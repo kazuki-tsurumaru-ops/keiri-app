@@ -1,0 +1,14 @@
+{
+  "name": "keiri-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev -c wrangler.local.toml --port 8788",
+    "db:local": "wrangler d1 migrations apply keiri-app --local -c wrangler.local.toml",
+    "db:remote": "wrangler d1 migrations apply keiri-app --remote",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.151.3"
+  }
+}

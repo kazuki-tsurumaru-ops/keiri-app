@@ -1,0 +1,9 @@
+node_modules/
+.wrangler/
+.dev.vars
+.DS_Store
+._*
+client_secret_*.json
+*.pem
+private/
+*.csv
